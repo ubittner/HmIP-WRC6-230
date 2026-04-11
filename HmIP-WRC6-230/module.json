@@ -1,0 +1,14 @@
+{
+    "id": "{98CA9F74-D5BB-69FF-BB44-7E9507DA5DED}",
+    "name": "HMIPWRC6230",
+    "type": 3,
+    "vendor": "Ulrich Bittner",
+    "aliases": [
+        "HmIP-WRC6-230"
+    ],
+    "url": "https://github.com/ubittner/HmIP-WRC6-230/tree/main/HmIP-WRC6-230",
+    "parentRequirements": [],
+    "childRequirements": [],
+    "implemented": [],
+    "prefix": "HMIPWRC6230"
+}

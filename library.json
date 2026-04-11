@@ -1,0 +1,12 @@
+{
+    "id": "{14D20D32-F0E6-05DE-BACE-E523BBE25732}",
+    "author": "Ulrich Bittner",
+    "name": "HMIPWRC6230",
+    "url": "https://github.com/ubittner/HmIP-WRC6-230/tree/main",
+    "compatibility": {
+        "version": "9.0"
+    },
+    "version": "1.0",
+    "build": 1,
+    "date": 1775887927
+}
