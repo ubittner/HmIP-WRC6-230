@@ -22,14 +22,12 @@ class HMIPWRC6230 extends IPSModuleStrict
     private const string ABLAUFSTEUERUNG_MODULE_GUID = '{0559B287-1052-A73E-B834-EBD9B62CB938}';
     private const string ABLAUFSTEUERUNG_MODULE_PREFIX = 'AST';
 
-    ######### Public Methods  ##########
-
     public function Create(): void
     {
         //Never delete this line!
         parent::Create();
 
-        ########## Properties
+        ##### Properties
 
         //Info
         $this->RegisterPropertyString('Note', '');
@@ -49,9 +47,12 @@ class HMIPWRC6230 extends IPSModuleStrict
             $this->RegisterPropertyString($statusLED['designation'] . 'TriggerList', '[]');
         }
 
-        //Automatic status update
+        //Automatic update
+        $this->RegisterPropertyBoolean('ForceExecutionOnSystemStartup', true);
         $this->RegisterPropertyBoolean('AutomaticUpdate', false);
         $this->RegisterPropertyInteger('UpdateInterval', 1800);
+        $this->RegisterPropertyBoolean('UpdateSwitchActuator', true);
+        $this->RegisterPropertyBoolean('UpdateStatusLEDs', true);
         $this->RegisterPropertyBoolean('ForceExecution', true);
 
         //Command control
@@ -61,7 +62,10 @@ class HMIPWRC6230 extends IPSModuleStrict
         $this->RegisterPropertyBoolean('UseAutomaticDeactivation', false);
         $this->RegisterPropertyString('AutomaticDeactivationStartTime', '{"hour":22,"minute":0,"second":0}');
         $this->RegisterPropertyString('AutomaticDeactivationEndTime', '{"hour":6,"minute":0,"second":0}');
+        $this->RegisterPropertyInteger('DeactivationSwitchActuator', 0);
+        $this->RegisterPropertyInteger('ActivationSwitchActuator', 1);
         $this->RegisterPropertyInteger('DeactivationBrightnessSlider', 0);
+        $this->RegisterPropertyInteger('ActivationBrightnessSlider', 100);
 
         //Visualisation
         $this->RegisterPropertyBoolean('EnableActive', false);
@@ -109,7 +113,7 @@ class HMIPWRC6230 extends IPSModuleStrict
         IPS_SetVariableProfileAssociation($profile, 11, 'Vorheriger Wert', '', 0);
         IPS_SetVariableProfileAssociation($profile, 12, 'Ohne Berücksichtigung', '', 0);
 
-        ########## Variables
+        ##### Variables
 
         //Active
         $id = @$this->GetIDForIdent('Active');
@@ -142,16 +146,6 @@ class HMIPWRC6230 extends IPSModuleStrict
                 $this->SetValue($ident, 0);
             }
 
-            //Brightness
-            $position += 10;
-            $ident = $statusLED['brightnessIdent'];
-            $id = @$this->GetIDForIdent($ident);
-            $this->RegisterVariableInteger($ident, $statusLED['caption'] . ' - Helligkeit', '~Intensity.100', $position);
-            $this->EnableAction($ident);
-            if (!$id) {
-                $this->SetValue($ident, 100);
-            }
-
             //Mode
             $position += 10;
             $ident = $statusLED['modeIdent'];
@@ -163,21 +157,31 @@ class HMIPWRC6230 extends IPSModuleStrict
                 IPS_SetIcon($this->GetIDForIdent($ident), 'Gear');
                 $this->SetValue($ident, 1);
             }
+
+            //Brightness
+            $position += 10;
+            $ident = $statusLED['brightnessIdent'];
+            $id = @$this->GetIDForIdent($ident);
+            $this->RegisterVariableInteger($ident, $statusLED['caption'] . ' - Helligkeit', '~Intensity.100', $position);
+            $this->EnableAction($ident);
+            if (!$id) {
+                $this->SetValue($ident, 100);
+            }
         }
 
-        ########## Timers
-        $this->RegisterTimer('StartAutomaticDeactivation', 0, self::MODULE_PREFIX . '_StartAutomaticDeactivation(' . $this->InstanceID . ');');
-        $this->RegisterTimer('StopAutomaticDeactivation', 0, self::MODULE_PREFIX . '_StopAutomaticDeactivation(' . $this->InstanceID . ');');
-        $this->RegisterTimer('AutomaticUpdate', 0, self::MODULE_PREFIX . '_AutomaticUpdate(' . $this->InstanceID . ');');
+        ##### Timers
+        $this->RegisterTimer('StartAutomaticDeactivation', 0, self::MODULE_PREFIX . '_Control_StartAutomaticDeactivation(' . $this->InstanceID . ');');
+        $this->RegisterTimer('StopAutomaticDeactivation', 0, self::MODULE_PREFIX . '_Control_StopAutomaticDeactivation(' . $this->InstanceID . ');');
+        $this->RegisterTimer('AutomaticUpdate', 0, self::MODULE_PREFIX . '_Control_ExecuteAutomaticUpdate(' . $this->InstanceID . ');');
+
+        ##### Attributes
+        $this->RegisterAttributeBoolean('SystemStartup', false);
     }
 
-    /**
-     * @throws Exception
-     */
     public function ApplyChanges(): void
     {
-        //Wait until IP-Symcon is started
-        $this->RegisterMessage(0, IPS_KERNELSTARTED);
+        //We will wait until the kernel is ready
+        $this->RegisterMessage(0, IPS_KERNELMESSAGE);
 
         //Never delete this line!
         parent::ApplyChanges();
@@ -296,27 +300,13 @@ class HMIPWRC6230 extends IPSModuleStrict
         IPS_SetHidden($this->GetIDForIdent('SwitchActuator'), !$this->ReadPropertyBoolean('EnableSwitchActuator'));
         foreach ($this->statusLEDs as $statusLED) {
             IPS_SetHidden($this->GetIDForIdent($statusLED['colorIdent']), !$this->ReadPropertyBoolean('Enable' . $statusLED['colorIdent']));
-            IPS_SetHidden($this->GetIDForIdent($statusLED['brightnessIdent']), !$this->ReadPropertyBoolean('Enable' . $statusLED['brightnessIdent']));
             IPS_SetHidden($this->GetIDForIdent($statusLED['modeIdent']), !$this->ReadPropertyBoolean('Enable' . $statusLED['modeIdent']));
+            IPS_SetHidden($this->GetIDForIdent($statusLED['brightnessIdent']), !$this->ReadPropertyBoolean('Enable' . $statusLED['brightnessIdent']));
         }
 
-        $switchActorDeviceState = $this->ReadPropertyInteger('SwitchActuatorDeviceState');
-        if ($this->CheckVariableExits($switchActorDeviceState)) {
-            $this->SetValue('SwitchActuator', GetValueBoolean($switchActorDeviceState));
-        }
-
-        $this->SetAutomaticDeactivationTimer();
-
-        if ($this->CheckAutomaticDeactivationTimer()) {
-            $this->ToggleActive(false);
-        }
-
-        //Set automatic update timer
-        $milliseconds = 0;
-        if ($this->ReadPropertyBoolean('AutomaticUpdate')) {
-            $milliseconds = $this->ReadPropertyInteger('UpdateInterval') * 1000;
-        }
-        $this->SetTimerInterval('AutomaticUpdate', $milliseconds);
+        $this->Control_SetAutomaticDeactivationTimer();
+        $this->Control_CheckOperationMode();
+        $this->Control_SetAutomaticUpdateTimer();
     }
 
     public function Destroy(): void
@@ -334,15 +324,14 @@ class HMIPWRC6230 extends IPSModuleStrict
         }
     }
 
-    /**
-     * @throws Exception
-     */
     public function MessageSink($TimeStamp, $SenderID, $Message, $Data): void
     {
         $this->SendDebug(__FUNCTION__, $TimeStamp . ', SenderID: ' . $SenderID . ', Message: ' . $Message . ', Data: ' . print_r($Data, true), 0);
         switch ($Message) {
-            case IPS_KERNELSTARTED:
-                $this->KernelReady();
+            case IPS_KERNELMESSAGE:
+                if ($Data[0] === KR_READY) {
+                    $this->KernelReady();
+                }
                 break;
 
             case VM_UPDATE:
@@ -352,9 +341,9 @@ class HMIPWRC6230 extends IPSModuleStrict
                 //$Data[2] = last value
                 //$Data[3] = timestamp actual value
                 //$Data[4] = timestamp value changed
-                //$Data[5] = timestamp last value
+                //$Data[5] = timestamp-last value
 
-                if ($this->CheckMaintenance()) {
+                if ($this->Control_CheckMaintenance()) {
                     return;
                 }
 
@@ -372,36 +361,17 @@ class HMIPWRC6230 extends IPSModuleStrict
         }
     }
 
-    public function CreateCommandControlInstance(): void
-    {
-        $id = IPS_CreateInstance(self::ABLAUFSTEUERUNG_MODULE_GUID);
-        if (is_int($id)) {
-            IPS_SetName($id, 'Ablaufsteuerung');
-            $infoText = 'Instanz mit der ID ' . $id . ' wurde erfolgreich erstellt!';
-        } else {
-            $infoText = 'Instanz konnte nicht erstellt werden!';
-        }
-        $this->UpdateFormField('InfoMessage', 'visible', true);
-        $this->UpdateFormField('InfoMessageLabel', 'caption', $infoText);
-    }
-
-    #################### Request Action
-
-    /**
-     * @throws Exception
-     */
     public function RequestAction($Ident, $Value): void
     {
         switch ($Ident) {
             case 'Active':
-                $this->ToggleActive($Value);
+                $this->Control_ToggleActive($Value);
                 break;
 
             case 'SwitchActuator':
-                $this->SwitchActuator($Value);
+                $this->SwitchActuator_ToggleState($Value);
                 break;
 
-                //Color
             case 'StatusLED_UpperLeft_Color':
             case 'StatusLED_UpperRight_Color':
             case 'StatusLED_MidLeft_Color':
@@ -409,12 +379,11 @@ class HMIPWRC6230 extends IPSModuleStrict
             case 'StatusLED_LowerLeft_Color':
             case 'StatusLED_LowerRight_Color':
             case 'StatusLED_All_Color':
-                if (!$this->CheckMaintenance()) {
+                if (!$this->Control_CheckMaintenance()) {
                     $this->StatusLED_SetColor($this->StatusLED_GetChannelByValue($Ident), $Value);
                 }
                 break;
 
-                //Brightness
             case 'StatusLED_UpperLeft_Brightness':
             case 'StatusLED_UpperRight_Brightness':
             case 'StatusLED_MidLeft_Brightness':
@@ -422,7 +391,7 @@ class HMIPWRC6230 extends IPSModuleStrict
             case 'StatusLED_LowerLeft_Brightness':
             case 'StatusLED_LowerRight_Brightness':
             case 'StatusLED_All_Brightness':
-                if (!$this->CheckMaintenance()) {
+                if (!$this->Control_CheckMaintenance()) {
                     $this->StatusLED_SetBrightness($this->StatusLED_GetChannelByValue($Ident), $Value);
                 }
                 break;
@@ -435,7 +404,7 @@ class HMIPWRC6230 extends IPSModuleStrict
             case 'StatusLED_LowerLeft_Mode':
             case 'StatusLED_LowerRight_Mode':
             case 'StatusLED_All_Mode':
-                if (!$this->CheckMaintenance()) {
+                if (!$this->Control_CheckMaintenance()) {
                     $this->StatusLED_SetColorBehavior($this->StatusLED_GetChannelByValue($Ident), $Value);
                 }
                 break;
@@ -443,37 +412,9 @@ class HMIPWRC6230 extends IPSModuleStrict
         }
     }
 
-    ########## Protected Methods  ##########
-
-    protected function CheckMaintenance(): bool
-    {
-        $result = false;
-        if (!$this->GetValue('Active')) {
-            $this->SendDebug(__FUNCTION__, 'Abbruch, die Instanz ist inaktiv!', 0);
-            $result = true;
-        }
-        return $result;
-    }
-
-    protected function CheckInstanceExits($InstanceID): bool
-    {
-        return @IPS_InstanceExists($InstanceID);
-    }
-
-    protected function CheckVariableExits($VariableID): bool
-    {
-        return @IPS_VariableExists($VariableID);
-    }
-
-    ########## Private Methods ##########
-
-    /**
-     * @throws Exception
-     */
     private function KernelReady(): void
     {
+        $this->WriteAttributeBoolean('SystemStartup', true);
         $this->ApplyChanges();
-        $this->SwitchActuator_UpdateState(true);
-        $this->StatusLED_UpdateState(true);
     }
 }

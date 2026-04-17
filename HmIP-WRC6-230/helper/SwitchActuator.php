@@ -6,35 +6,24 @@ declare(strict_types=1);
 
 trait SwitchActuator
 {
-    ######### Public Methods  ##########
+    ######### Public Methods ##########
 
-    /**
-     * Switches the actuator to the specified state.
-     *
-     * @param bool $State
-     * true =  switch on,
-     * false = switch off
-     *
-     * @param bool $ForceExecution
-     * false =  use configuration,
-     * true =   always switch
-     *
-     * @return bool
-     * true =  the actuator was switched successfully,
-     * false = the actuator could not be switched
-     *
-     * @throws Exception
-     */
-    public function SwitchActuator(bool $State, bool $ForceExecution = false): bool
+    public function SwitchActuator_ToggleState(bool $State, bool $ForceExecution = false, bool $OverrideMaintenanceCheck = false): bool
     {
         //Do some checks first
-        if ($this->CheckMaintenance()) {
-            return false;
+        if (!$OverrideMaintenanceCheck) {
+            if ($this->Control_CheckMaintenance()) {
+                return false;
+            }
         }
         $variableID = $this->ReadPropertyInteger('SwitchActuatorDeviceState');
         if (!@IPS_VariableExists($variableID)) {
             return false;
         }
+        //Log
+        //$this->LogMessage('ID ' . $this->InstanceID . ', ' . __CLASS__ . ', ' . __FUNCTION__ . ', Status: ' . json_encode($State) . ', Aktualisierung erzwingen: ' . json_encode($ForceExecution) . ', Wartungsprüfung überspringen: ' . json_encode($OverrideMaintenanceCheck), KL_NOTIFY);
+        //Debug
+        $this->SendDebug(__FUNCTION__, 'Status: ' . json_encode($State) . ', Aktualisierung erzwingen: ' . json_encode($ForceExecution) . ', Wartungsprüfung überspringen: ' . json_encode($OverrideMaintenanceCheck), 0);
         //Get and set the current state and set the new state
         $currentState = $this->GetValue('SwitchActuator');
         $this->SetValue('SwitchActuator', $State);
@@ -54,15 +43,16 @@ trait SwitchActuator
             $this->SendDebug(__FUNCTION__, 'Das Schalten wird erzwungen!', 0);
         }
         //Enter semaphore
-        if (!$this->LockSemaphore('SwitchActuator')) {
+        if (!$this->Control_LockSemaphore('SwitchActuator_ToggleState')) {
             $this->SendDebug(__FUNCTION__, 'Abbruch, das Semaphore wurde erreicht!', 0);
             //Revert back to the origin state
             $this->SetValue('SwitchActuator', $currentState);
             //Exit semaphore
-            $this->UnlockSemaphore('SwitchActuator');
+            $this->Control_UnlockSemaphore('SwitchActuator_ToggleState');
             return false;
         }
         //Switch actuator
+        $result = false;
         $commandControl = $this->ReadPropertyInteger('CommandControl');
         $value = $State ? 'true' : 'false';
         if (@IPS_InstanceExists($commandControl)) {
@@ -77,10 +67,18 @@ trait SwitchActuator
             $switchingDelay = $this->ReadPropertyInteger('SwitchActuatorSwitchingDelay');
             IPS_Sleep($switchingDelay);
             $this->SendDebug(__FUNCTION__, 'Befehl: @RequestAction(' . $variableID . ', ' . $value . ');', 0);
-            $result = @RequestAction($variableID, $State);
+            try {
+                $result = @RequestAction($variableID, $State);
+            } catch (Exception $e) {
+                $this->LogMessage('ID ' . $this->InstanceID . ', ' . __CLASS__ . ' ' . __FUNCTION__ . ': ' . $e->getMessage(), KL_ERROR);
+            }
             if (!$result) {
                 IPS_Sleep($switchingDelay);
-                $result = @RequestAction($variableID, $State);
+                try {
+                    $result = @RequestAction($variableID, $State);
+                } catch (Exception $e) {
+                    $this->LogMessage('ID ' . $this->InstanceID . ', ' . __CLASS__ . ' ' . __FUNCTION__ . ': ' . $e->getMessage(), KL_ERROR);
+                }
             }
         }
         if (!$result) {
@@ -88,16 +86,19 @@ trait SwitchActuator
             $this->SetValue('SwitchActuator', $currentState);
         }
         //Exit semaphore
-        $this->UnlockSemaphore('SwitchActuator');
+        $this->Control_UnlockSemaphore('SwitchActuator_ToggleState');
         return $result;
     }
 
-    /**
-     * Gets the current states of the triggers for the switch actuator.
-     *
-     * @return void
-     */
-    public function SwitchActuator_GetCurrentTriggerStates(): void
+    public function SwitchActuator_UpdateState(bool $ForceExecution): void //Also used in configuration form
+    {
+        if ($this->Control_CheckMaintenance()) {
+            return;
+        }
+        $this->SwitchActuator_CheckTriggerConditions($ForceExecution);
+    }
+
+    public function SwitchActuator_GetCurrentTriggerStates(): void //Only used from configuration form
     {
         $this->UpdateFormField('SwitchActuatorCurrentVariableStateConfigurationButton', 'visible', false);
         $actualVariableStates = [];
@@ -163,39 +164,11 @@ trait SwitchActuator
         $this->UpdateFormField($field, 'visible', true);
     }
 
-    /**
-     * Updates the state of the switch actuator.
-     *
-     * @param bool $ForceExecution
-     * false =  use configuration,
-     * true =   always switch
-     *
-     * @return void
-     *
-     * @throws Exception
-     */
-    public function SwitchActuator_UpdateState(bool $ForceExecution): void
-    {
-        $this->LogMessage(' ID ' . $this->InstanceID . ', ' . __CLASS__ . ', ' . __FUNCTION__ . ', Forcieren: ' . json_encode($ForceExecution), KL_NOTIFY);
-        $this->SwitchActuator_CheckTriggerConditions($ForceExecution);
-    }
+    ######### Protected Methods ##########
 
-    ########## Protected Methods  ##########
-
-    /**
-     * Checks the trigger conditions for the switch actuator and performs the appropriate actions if conditions are met.
-     *
-     * @param bool $ForceExecution
-     * false =  use configuration,
-     * true =   always switch
-     *
-     * @return void
-     *
-     * @throws Exception
-     */
     protected function SwitchActuator_CheckTriggerConditions(bool $ForceExecution = false): void
     {
-        if ($this->CheckMaintenance()) {
+        if ($this->Control_CheckMaintenance()) {
             return;
         }
         $variables = json_decode($this->ReadPropertyString('SwitchActuatorTriggerList'), true);
@@ -232,7 +205,7 @@ trait SwitchActuator
                     } else {
                         $force = $variable['ForceExecution'];
                     }
-                    $this->SwitchActuator($variable['ToggleAction'], $force);
+                    $this->SwitchActuator_ToggleState($variable['ToggleAction'], $force);
                     break;
 
                 }
@@ -240,16 +213,6 @@ trait SwitchActuator
         }
     }
 
-    /**
-     * Checks whether a specific variable is assigned as a trigger for the switch actuator.
-     *
-     * @param int $VariableID
-     * The ID of the variable to check.
-     *
-     * @return bool
-     * true =  the variable is assigned as a trigger,
-     * false = the variable is not assigned as a trigger.
-     */
     protected function SwitchActuator_IsTriggerAssigned(int $VariableID): bool
     {
         $result = false;
@@ -264,7 +227,7 @@ trait SwitchActuator
                             if (array_key_exists(0, $conditionType[0]['rules']['variable'])) {
                                 $id = $conditionType[0]['rules']['variable'][0]['variableID'];
                                 if ($id == $VariableID) {
-                                    if ($this->CheckVariableExits($id)) {
+                                    if (@IPS_VariableExists($id)) {
                                         if ($variable['Use']) {
                                             $result = true;
                                         }

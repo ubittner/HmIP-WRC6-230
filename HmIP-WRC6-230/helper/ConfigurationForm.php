@@ -6,8 +6,6 @@ declare(strict_types=1);
 
 trait ConfigurationForm
 {
-    ######### Public Methods  ##########
-
     public function ReloadConfig(): void
     {
         $this->ReloadForm();
@@ -421,18 +419,18 @@ trait ConfigurationForm
                 ${'enable' . $statusLED['designation'] . 'DeviceColorConfigurationButton'} = true;
             }
 
-            //Device brightness
-            ${$statusLED['designation'] . 'DeviceLevel'} = $this->ReadPropertyInteger($statusLED['designation'] . 'DeviceLevel');
-            ${'enable' . $statusLED['designation'] . 'DeviceLevelConfigurationButton'} = false;
-            if (${$statusLED['designation'] . 'DeviceLevel'} > 1 && @IPS_ObjectExists(${$statusLED['designation'] . 'DeviceLevel'})) {
-                ${'enable' . $statusLED['designation'] . 'DeviceLevelConfigurationButton'} = true;
-            }
-
             //Device color behavior
             ${$statusLED['designation'] . 'DeviceColorBehavior'} = $this->ReadPropertyInteger($statusLED['designation'] . 'DeviceColorBehavior');
             ${'enable' . $statusLED['designation'] . 'DeviceColorBehaviorConfigurationButton'} = false;
             if (${$statusLED['designation'] . 'DeviceColorBehavior'} > 1 && @IPS_ObjectExists(${$statusLED['designation'] . 'DeviceColorBehavior'})) {
                 ${'enable' . $statusLED['designation'] . 'DeviceColorBehaviorConfigurationButton'} = true;
+            }
+
+            //Device brightness
+            ${$statusLED['designation'] . 'DeviceLevel'} = $this->ReadPropertyInteger($statusLED['designation'] . 'DeviceLevel');
+            ${'enable' . $statusLED['designation'] . 'DeviceLevelConfigurationButton'} = false;
+            if (${$statusLED['designation'] . 'DeviceLevel'} > 1 && @IPS_ObjectExists(${$statusLED['designation'] . 'DeviceLevel'})) {
+                ${'enable' . $statusLED['designation'] . 'DeviceLevelConfigurationButton'} = true;
             }
 
             //Trigger list
@@ -554,31 +552,6 @@ trait ConfigurationForm
                             'items' => [
                                 [
                                     'type'     => 'SelectVariable',
-                                    'name'     => $statusLED['designation'] . 'DeviceLevel',
-                                    'caption'  => 'Gerätevariable LEVEL (Helligkeit)',
-                                    'width'    => '600px',
-                                    'onChange' => sprintf(
-                                        '%s_ModifyButton($id, "%sDeviceLevelConfigurationButton", "ID " . $%s . " konfigurieren", $%s);',
-                                        self::MODULE_PREFIX,
-                                        $statusLED['designation'],
-                                        $statusLED['designation'] . 'DeviceLevel',
-                                        $statusLED['designation'] . 'DeviceLevel'
-                                    )
-                                ],
-                                [
-                                    'type'     => 'OpenObjectButton',
-                                    'name'     => $statusLED['designation'] . 'DeviceLevelConfigurationButton',
-                                    'caption'  => 'ID ' . ${$statusLED['designation'] . 'DeviceLevel'} . ' konfigurieren',
-                                    'visible'  => ${'enable' . $statusLED['designation'] . 'DeviceLevelConfigurationButton'},
-                                    'objectID' => ${$statusLED['designation'] . 'DeviceLevel'}
-                                ]
-                            ]
-                        ],
-                        [
-                            'type'  => 'RowLayout',
-                            'items' => [
-                                [
-                                    'type'     => 'SelectVariable',
                                     'name'     => $statusLED['designation'] . 'DeviceColorBehavior',
                                     'caption'  => 'Gerätevariable COLOR_BEHAVIOUR (Modus)',
                                     'width'    => '600px',
@@ -596,6 +569,31 @@ trait ConfigurationForm
                                     'caption'  => 'ID ' . ${$statusLED['designation'] . 'DeviceColorBehavior'} . ' konfigurieren',
                                     'visible'  => ${'enable' . $statusLED['designation'] . 'DeviceColorBehaviorConfigurationButton'},
                                     'objectID' => ${$statusLED['designation'] . 'DeviceColorBehavior'}
+                                ]
+                            ]
+                        ],
+                        [
+                            'type'  => 'RowLayout',
+                            'items' => [
+                                [
+                                    'type'     => 'SelectVariable',
+                                    'name'     => $statusLED['designation'] . 'DeviceLevel',
+                                    'caption'  => 'Gerätevariable LEVEL (Helligkeit)',
+                                    'width'    => '600px',
+                                    'onChange' => sprintf(
+                                        '%s_ModifyButton($id, "%sDeviceLevelConfigurationButton", "ID " . $%s . " konfigurieren", $%s);',
+                                        self::MODULE_PREFIX,
+                                        $statusLED['designation'],
+                                        $statusLED['designation'] . 'DeviceLevel',
+                                        $statusLED['designation'] . 'DeviceLevel'
+                                    )
+                                ],
+                                [
+                                    'type'     => 'OpenObjectButton',
+                                    'name'     => $statusLED['designation'] . 'DeviceLevelConfigurationButton',
+                                    'caption'  => 'ID ' . ${$statusLED['designation'] . 'DeviceLevel'} . ' konfigurieren',
+                                    'visible'  => ${'enable' . $statusLED['designation'] . 'DeviceLevelConfigurationButton'},
+                                    'objectID' => ${$statusLED['designation'] . 'DeviceLevel'}
                                 ]
                             ]
                         ],
@@ -960,6 +958,23 @@ trait ConfigurationForm
                 'caption' => 'Aktualisierung',
                 'items'   => [
                     [
+                        'type'    => 'Label',
+                        'caption' => 'Systemstart',
+                        'bold'    => true,
+                        'italic'  => true
+                    ],
+                    [
+                        'type'    => 'CheckBox',
+                        'name'    => 'ForceExecutionOnSystemStartup',
+                        'caption' => 'Aktualisierung erzwingen'
+                    ],
+                    [
+                        'type'    => 'Label',
+                        'caption' => "\nSystembetrieb",
+                        'bold'    => true,
+                        'italic'  => true
+                    ],
+                    [
                         'type'    => 'CheckBox',
                         'name'    => 'AutomaticUpdate',
                         'caption' => 'Automatische Aktualisierung'
@@ -973,8 +988,18 @@ trait ConfigurationForm
                     ],
                     [
                         'type'    => 'CheckBox',
+                        'name'    => 'UpdateSwitchActuator',
+                        'caption' => 'Schaltaktor aktualisieren'
+                    ],
+                    [
+                        'type'    => 'CheckBox',
+                        'name'    => 'UpdateStatusLEDs',
+                        'caption' => 'Status LEDs aktualisieren'
+                    ],
+                    [
+                        'type'    => 'CheckBox',
                         'name'    => 'ForceExecution',
-                        'caption' => 'Signalisierung erzwingen'
+                        'caption' => 'Aktualisierung erzwingen'
                     ]
                 ]
             ];
@@ -1013,7 +1038,7 @@ trait ConfigurationForm
                             [
                                 'type'    => 'Button',
                                 'caption' => 'Neue Instanz erstellen',
-                                'onClick' => self::MODULE_PREFIX . '_CreateCommandControlInstance($id);'
+                                'onClick' => self::MODULE_PREFIX . '_Control_CreateCommandControlInstance($id);'
                             ]
                         ]
                     ]
@@ -1025,6 +1050,78 @@ trait ConfigurationForm
             'name'    => 'Panel' . $panelCount++,
             'caption' => 'Deaktivierung',
             'items'   => [
+                [
+                    'type'    => 'Label',
+                    'caption' => 'Schaltaktor',
+                    'bold'    => true,
+                    'italic'  => true
+                ],
+                [
+                    'type'         => 'Select',
+                    'name'         => 'DeactivationSwitchActuator',
+                    'caption'      => 'Schaltvorgang bei Deaktivierung',
+                    'options'      => [
+                        [
+                            'caption' => 'Aus',
+                            'value'   => 0
+                        ],
+                        [
+                            'caption' => 'Ein',
+                            'value'   => 1
+                        ],
+                        [
+                            'caption' => 'Keine Aktion',
+                            'value'   => 2
+                        ]
+                    ]
+                ],
+                [
+                    'type'         => 'Select',
+                    'name'         => 'ActivationSwitchActuator',
+                    'caption'      => 'Schaltvorgang bei Aktivierung',
+                    'options'      => [
+                        [
+                            'caption' => 'Aus',
+                            'value'   => 0
+                        ],
+                        [
+                            'caption' => 'Ein',
+                            'value'   => 1
+                        ],
+                        [
+                            'caption' => 'Keine Aktion',
+                            'value'   => 2
+                        ]
+                    ]
+                ],
+                [
+                    'type'    => 'Label',
+                    'caption' => "\nStatus LEDs",
+                    'bold'    => true,
+                    'italic'  => true
+                ],
+                [
+                    'type'         => 'HorizontalSlider',
+                    'name'         => 'DeactivationBrightnessSlider',
+                    'caption'      => 'Helligkeit bei Deaktivierung',
+                    'minimum'      => 0,
+                    'maximum'      => 100,
+                    'displayValue' => true
+                ],
+                [
+                    'type'         => 'HorizontalSlider',
+                    'name'         => 'ActivationBrightnessSlider',
+                    'caption'      => 'Helligkeit bei Aktivierung',
+                    'minimum'      => 0,
+                    'maximum'      => 100,
+                    'displayValue' => true
+                ],
+                [
+                    'type'    => 'Label',
+                    'caption' => "\nAutomatische Deaktivierung",
+                    'bold'    => true,
+                    'italic'  => true
+                ],
                 [
                     'type'    => 'CheckBox',
                     'name'    => 'UseAutomaticDeactivation',
@@ -1039,14 +1136,6 @@ trait ConfigurationForm
                     'type'    => 'SelectTime',
                     'name'    => 'AutomaticDeactivationEndTime',
                     'caption' => 'Endzeit'
-                ],
-                [
-                    'type'         => 'HorizontalSlider',
-                    'name'         => 'DeactivationBrightnessSlider',
-                    'caption'      => 'Helligkeit',
-                    'minimum'      => 0,
-                    'maximum'      => 100,
-                    'displayValue' => true
                 ]
             ]
         ];
@@ -1057,8 +1146,8 @@ trait ConfigurationForm
 
             foreach ([
                 ['suffix' => 'colorIdent', 'label' => 'Farbe'],
-                ['suffix' => 'brightnessIdent', 'label' => 'Helligkeit'],
-                ['suffix' => 'modeIdent', 'label' => 'Modus']
+                ['suffix' => 'modeIdent', 'label' => 'Modus'],
+                ['suffix' => 'brightnessIdent', 'label' => 'Helligkeit']
             ] as $type) {
                 $statusLEDVisualisation[] = [
                     'type'    => 'CheckBox',
@@ -1067,8 +1156,6 @@ trait ConfigurationForm
                 ];
             }
         }
-
-        //print_r($statusLEDVisualisation);
 
         $form['elements'][] = [
             'type'    => 'ExpansionPanel',
@@ -1096,7 +1183,7 @@ trait ConfigurationForm
         $form['actions'][] =
             [
                 'type'    => 'Button',
-                'caption' => 'Status aktualisieren',
+                'caption' => 'Aktualisierung erzwingen',
                 'onClick' => self::MODULE_PREFIX . '_StatusLED_UpdateState($id, true);' . self::MODULE_PREFIX . '_SwitchActuator_UpdateState($id, true);'
             ];
 
