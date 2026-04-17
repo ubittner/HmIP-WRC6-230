@@ -8,7 +8,7 @@
 [![Run Tests](https://github.com/ubittner/HmIP-WRC6-230/workflows/Run%20Tests/badge.svg)](https://github.com/ubittner/HmIP-WRC6-230/actions)  
 [![Module Type](https://img.shields.io/badge/Type-IPSModuleStrict-red.svg)](https://www.symcon.de/service/dokumentation/entwicklerbereich/sdk-tools/sdk-php/)
 [![Module Version](https://img.shields.io/badge/Module_Version-1.0-blue.svg)]()
-[![Module Build](https://img.shields.io/badge/Module_Build-2-blue.svg)]()
+[![Module Build](https://img.shields.io/badge/Module_Build-3-blue.svg)]()
 [![Module Date](https://img.shields.io/badge/Module_Date-20260417_(17.04.2026)-blue.svg)]()  
 [![License](https://img.shields.io/badge/License-CC%20BY--NC--SA%204.0-green.svg)](https://creativecommons.org/licenses/by-nc-sa/4.0/)
 
