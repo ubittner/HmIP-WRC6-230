@@ -395,7 +395,7 @@ trait StatusLED
                 if ($variableUpdate != 0) {
                     $lastUpdate = date('d.m.Y H:i:s', $variableUpdate);
                 }
-                $actualVariableStates[] = ['ActualStatus' => $stateName, 'SensorID' => $sensorID, 'Priority' =>  $variable['Priority'], 'Designation' =>  $variable['Designation'], 'Color' =>  $colorName, 'Brightness' =>  $variable['Brightness'], 'Mode' =>  $modeName, 'LastUpdate' => $lastUpdate, 'rowColor' => $rowColor];
+                $actualVariableStates[] = ['ActualStatus' => $stateName, 'SensorID' => $sensorID, 'Priority' =>  $variable['Priority'], 'Designation' =>  $variable['Designation'], 'Color' =>  $colorName, 'Mode' =>  $modeName, 'Brightness' =>  $variable['Brightness'], 'LastUpdate' => $lastUpdate, 'rowColor' => $rowColor];
             }
         }
         $amount = count($actualVariableStates);

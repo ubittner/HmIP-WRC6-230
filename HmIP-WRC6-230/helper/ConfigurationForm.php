@@ -671,15 +671,15 @@ trait ConfigurationForm
                                                 'save'    => false
                                             ],
                                             [
-                                                'name'    => 'Brightness',
-                                                'caption' => 'Helligkeit',
-                                                'width'   => '120px',
-                                                'save'    => false
-                                            ],
-                                            [
                                                 'name'    => 'Mode',
                                                 'caption' => 'Modus',
                                                 'width'   => '200px',
+                                                'save'    => false
+                                            ],
+                                            [
+                                                'name'    => 'Brightness',
+                                                'caption' => 'Helligkeit',
+                                                'width'   => '120px',
                                                 'save'    => false
                                             ],
                                             [
@@ -849,18 +849,6 @@ trait ConfigurationForm
                                     ]
                                 ],
                                 [
-                                    'caption' => 'Helligkeit',
-                                    'name'    => 'Brightness',
-                                    'width'   => '100px',
-                                    'add'     => 100,
-                                    'edit'    => [
-                                        'type'    => 'NumberSpinner',
-                                        'suffix'  => '%',
-                                        'minimum' => 0,
-                                        'maximum' => 100
-                                    ]
-                                ],
-                                [
                                     'caption' => 'Modus',
                                     'name'    => 'Mode',
                                     'width'   => '200px',
@@ -921,6 +909,18 @@ trait ConfigurationForm
                                                 'value'   => 12
                                             ]
                                         ]
+                                    ]
+                                ],
+                                [
+                                    'caption' => 'Helligkeit',
+                                    'name'    => 'Brightness',
+                                    'width'   => '100px',
+                                    'add'     => 100,
+                                    'edit'    => [
+                                        'type'    => 'NumberSpinner',
+                                        'suffix'  => '%',
+                                        'minimum' => 0,
+                                        'maximum' => 100
                                     ]
                                 ],
                                 [
