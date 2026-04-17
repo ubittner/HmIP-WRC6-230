@@ -4,83 +4,139 @@ declare(strict_types=1);
 
 trait Control
 {
-    ######### Public Methods  ##########
+    ######### Public Methods ##########
 
-    /**
-     * Toggles the main switch between active and inactive.
-     *
-     * @param bool $State
-     * false =  deactivate (maintenance mode,
-     * true =   activate
-     *
-     * @return void
-     * @throws Exception
-     */
-    public function ToggleActive(bool $State): void
+    public function Control_ToggleActive(bool $State, bool $ForceExecution = false): void
     {
+        $this->SendDebug(__FUNCTION__, 'Status: ' . json_encode($State) . ', Ausführung erzwingen: ' . json_encode($ForceExecution), 0);
+        //Deactivation
         if (!$State) {
-            //Set all status LEDs off
-            foreach ($this->statusLEDs as $led) {
-                $this->StatusLED_SetBrightness($led['channel'], $this->ReadPropertyInteger('DeactivationBrightnessSlider'));
-            }
             $this->SetValue('Active', false);
+            $this->SendDebug(__FUNCTION__, 'Deaktivieren', 0);
+            //Switch actuator, always perform the defined deactivation setting for the switch actuator
+            $value = $this->ReadPropertyInteger('DeactivationSwitchActuator');
+            if ($value === 0 || $value === 1) { //0 = off, 1 = on, 2 = no action
+                $this->SwitchActuator_ToggleState((bool) $value, $ForceExecution, true);
+            }
+            //Status LEDs, always performs the defined deactivation brightness to all status LEDs
+            foreach ($this->statusLEDs as $led) {
+                $this->StatusLED_SetBrightness($led['channel'], $this->ReadPropertyInteger('DeactivationBrightnessSlider'), $ForceExecution, true);
+            }
         }
+        //Activation
         else {
-            $currentState = $this->GetValue('Active');
             $this->SetValue('Active', true);
-            if (!$currentState) {
-                $this->SwitchActuator_UpdateState(true);
-                $this->StatusLED_UpdateState(true);
+            $this->SendDebug(__FUNCTION__, 'Aktivieren', 0);
+            //If we are in the deactivation period, we do not allow performing an activation
+            if ($this->Control_CheckDeactivationPeriod()) {
+                return;
+            }
+            //Switch actuator
+            //We have no trigger, so we perform the defined activation setting for the switch actuator
+            if (!$this->Control_ValidateTriggerList('SwitchActuatorTriggerList')) {
+                $value = $this->ReadPropertyInteger('ActivationSwitchActuator');
+                if ($value === 0 || $value === 1) { //0 = off, 1 = on, 2 = no action
+                    $this->SwitchActuator_ToggleState((bool) $value, $ForceExecution);
+                }
+            } else {
+                //We have a trigger, so we check the conditions
+                $this->SwitchActuator_CheckTriggerConditions($ForceExecution);
+            }
+            //Status LEDs
+            foreach ($this->statusLEDs as $led) {
+                //We have no trigger, so we perform the defined activation brightness for this led
+                if (!$this->Control_ValidateTriggerList($led['designation'] . 'TriggerList')) {
+                    $this->StatusLED_SetBrightness($led['channel'], $this->ReadPropertyInteger('ActivationBrightnessSlider'), $ForceExecution);
+                } else {
+                    //We have a trigger, so we check the conditions
+                    $this->StatusLED_CheckTriggerConditions($led['channel'], $ForceExecution);
+                }
             }
         }
     }
 
-    /**
-     * Executes the automatic update.
-     *
-     * @return void
-     * @throws Exception
-     */
-    public function AutomaticUpdate(): void
+    public function Control_ExecuteAutomaticUpdate(): void //Used by a timer
     {
-        $this->SwitchActuator_UpdateState($this->ReadPropertyBoolean('ForceExecution'));
-        $this->StatusLED_UpdateState($this->ReadPropertyBoolean('ForceExecution'));
+        $this->Control_SetAutomaticUpdateTimer();
+        if ($this->Control_CheckMaintenance()) {
+            return;
+        }
+        $forceExecution = $this->ReadPropertyBoolean('ForceExecution');
+        //Switch actuator
+        if ($this->ReadPropertyBoolean('UpdateSwitchActuator')) {
+            $this->SwitchActuator_UpdateState($forceExecution);
+        }
+        //Status LEDs
+        if ($this->ReadPropertyBoolean('UpdateStatusLEDs')) {
+            $this->StatusLED_UpdateState($forceExecution);
+        }
     }
 
-    /**
-     * Starts the automatic deactivation.
-     *
-     * @return void
-     * @throws Exception
-     */
-    public function StartAutomaticDeactivation(): void
+    public function Control_StartAutomaticDeactivation(): void //Used by a timer
     {
-        $this->ToggleActive(false);
-        $this->SetAutomaticDeactivationTimer();
+        $this->Control_ToggleActive(false);
+        $this->Control_SetAutomaticDeactivationTimer();
     }
 
-    /**
-     * Stops the automatic deactivation.
-     *
-     * @return void
-     * @throws Exception
-     */
-    public function StopAutomaticDeactivation(): void
+    public function Control_StopAutomaticDeactivation(): void //Used by a timer
     {
-        $this->SetAutomaticDeactivationTimer();
-        $this->ToggleActive(true);
+        $this->Control_SetAutomaticDeactivationTimer();
+        $this->Control_ToggleActive(true);
     }
 
-    ######### Protected Methods  ##########
+    public function Control_CreateCommandControlInstance(): void
+    {
+        $id = IPS_CreateInstance(self::ABLAUFSTEUERUNG_MODULE_GUID);
+        if (is_int($id)) {
+            IPS_SetName($id, 'Ablaufsteuerung');
+            $infoText = 'Instanz mit der ID ' . $id . ' wurde erfolgreich erstellt!';
+        } else {
+            $infoText = 'Instanz konnte nicht erstellt werden!';
+        }
+        $this->UpdateFormField('InfoMessage', 'visible', true);
+        $this->UpdateFormField('InfoMessageLabel', 'caption', $infoText);
+    }
 
-    /**
-     * Attempts to set the semaphore and repeats this up to multiple times.
-     *
-     * @param $Name
-     * @return bool
-     * @throws Exception
-     */
-    protected function LockSemaphore($Name): bool
+    ########## Protected Methods ##########
+
+    protected function Control_CheckMaintenance(): bool
+    {
+        $result = false;
+        if (!$this->GetValue('Active')) {
+            $this->SendDebug(__FUNCTION__, 'Abbruch, die Instanz ist inaktiv!', 0);
+            $result = true;
+        }
+        return $result;
+    }
+
+    protected function Control_CheckOperationMode(): void
+    {
+        //We will have to operation modes, one is on system startup and the other is o normal system operation
+        $systemStartup = $this->ReadAttributeBoolean('SystemStartup');
+        //System startup
+        if ($systemStartup) {
+            $this->WriteAttributeBoolean('SystemStartup', false);
+            $forceExecution = $this->ReadPropertyBoolean('ForceExecutionOnSystemStartup');
+            //Automatic deactivation
+            if ($this->ReadPropertyBoolean('UseAutomaticDeactivation')) {
+                $state = true;
+                //Check if we are in the deactivation period
+                if ($this->Control_CheckDeactivationPeriod()) {
+                    $state = false;
+                }
+                $this->Control_ToggleActive($state, $forceExecution);
+            } else {
+                //Manual operation mode
+                $this->Control_ToggleActive($this->GetValue('Active'), $forceExecution);
+            }
+        }
+        //Normal system operation
+        else {
+            $this->Control_ToggleActive($this->GetValue('Active'));
+        }
+    }
+
+    protected function Control_LockSemaphore($Name): bool
     {
         $attempts = 1000;
         for ($i = 0; $i < $attempts; $i++) {
@@ -94,51 +150,81 @@ trait Control
         return false;
     }
 
-    /**
-     * Leaves the semaphore.
-     *
-     * @param $Name
-     * @return void
-     */
-    protected function UnlockSemaphore($Name): void
+    protected function Control_UnlockSemaphore($Name): void
     {
         @IPS_SemaphoreLeave(__CLASS__ . '.' . $this->InstanceID . '.' . $Name);
         $this->SendDebug(__FUNCTION__, 'Semaphore ' . $Name . ' unlocked', 0);
     }
 
-    ######### Private Methods  ##########
+    protected function Control_SetAutomaticUpdateTimer(): void
+    {
+        $milliseconds = 0;
+        if ($this->ReadPropertyBoolean('AutomaticUpdate')) {
+            $milliseconds = $this->ReadPropertyInteger('UpdateInterval') * 1000;
+        }
+        $this->SetTimerInterval('AutomaticUpdate', $milliseconds);
+    }
 
-    /**
-     * Sets the timer for the automatic deactivation.
-     *
-     * @return void
-     * @throws Exception
-     */
-    private function SetAutomaticDeactivationTimer(): void
+    protected function Control_SetAutomaticDeactivationTimer(): void
     {
         $use = $this->ReadPropertyBoolean('UseAutomaticDeactivation');
-        //Start
+        //Deactivation start
         $milliseconds = 0;
         if ($use) {
-            $milliseconds = $this->GetInterval('AutomaticDeactivationStartTime');
+            $milliseconds = $this->Control_GetTimerInterval('AutomaticDeactivationStartTime');
         }
         $this->SetTimerInterval('StartAutomaticDeactivation', $milliseconds);
-        //End
+        //Deactivation end
         $milliseconds = 0;
         if ($use) {
-            $milliseconds = $this->GetInterval('AutomaticDeactivationEndTime');
+            $milliseconds = $this->Control_GetTimerInterval('AutomaticDeactivationEndTime');
         }
         $this->SetTimerInterval('StopAutomaticDeactivation', $milliseconds);
     }
 
-    /**
-     * Gets the interval for a timer.
-     *
-     * @param string $TimerName
-     * @return int
-     * @throws Exception
-     */
-    private function GetInterval(string $TimerName): int
+    ########## Private Methods ##########
+
+    private function Control_CheckDeactivationPeriod(): bool
+    {
+        if (!$this->ReadPropertyBoolean('UseAutomaticDeactivation')) {
+            return false;
+        }
+        $start = $this->GetTimerInterval('StartAutomaticDeactivation');
+        $stop = $this->GetTimerInterval('StopAutomaticDeactivation');
+        $state = false;
+        //Check deactivation period
+        if ($start > $stop) {
+            $state = true;
+        }
+        return $state;
+    }
+
+    private function Control_ValidateTriggerList(string $TriggerListName): bool
+    {
+        $result = false;
+        $variables = json_decode($this->ReadPropertyString($TriggerListName), true);
+        if (!empty($variables)) {
+            foreach ($variables as $variable) {
+                if (!$variable['Use']) {
+                    continue;
+                }
+                if ($variable['PrimaryCondition'] != '') {
+                    $primaryCondition = json_decode($variable['PrimaryCondition'], true);
+                    if (array_key_exists(0, $primaryCondition)) {
+                        if (array_key_exists(0, $primaryCondition[0]['rules']['variable'])) {
+                            $id = $primaryCondition[0]['rules']['variable'][0]['variableID'];
+                            if (@IPS_VariableExists($id)) {
+                                $result = true;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        return $result;
+    }
+
+    private function Control_GetTimerInterval(string $TimerName): int
     {
         $timer = json_decode($this->ReadPropertyString($TimerName));
         $now = time();
@@ -152,31 +238,5 @@ trait Control
             $timestamp = mktime($hour, $minute, $second, (int) date('n'), (int) date('j'), (int) date('Y'));
         }
         return ($timestamp - $now) * 1000;
-    }
-
-    /**
-     * Checks the status of the automatic deactivation timer.
-     *
-     * @return bool
-     * false =  timer is active,
-     * true =   timer is inactive
-     * @throws Exception
-     */
-    private function CheckAutomaticDeactivationTimer(): bool
-    {
-        if (!$this->ReadPropertyBoolean('UseAutomaticDeactivation')) {
-            return false;
-        }
-        $start = $this->GetTimerInterval('StartAutomaticDeactivation');
-        $stop = $this->GetTimerInterval('StopAutomaticDeactivation');
-        if ($start > $stop) {
-            //Deactivation timer is active, must be toggled to inactive
-            $this->ToggleActive(false);
-            return true;
-        } else {
-            //Deactivation timer is inactive, must be toggled to active
-            $this->ToggleActive(true);
-            return false;
-        }
     }
 }
