@@ -20,8 +20,6 @@ trait SwitchActuator
         if (!@IPS_VariableExists($variableID)) {
             return false;
         }
-        //Log
-        //$this->LogMessage('ID ' . $this->InstanceID . ', ' . __CLASS__ . ', ' . __FUNCTION__ . ', Status: ' . json_encode($State) . ', Aktualisierung erzwingen: ' . json_encode($ForceExecution) . ', Wartungsprüfung überspringen: ' . json_encode($OverrideMaintenanceCheck), KL_NOTIFY);
         //Debug
         $this->SendDebug(__FUNCTION__, 'Status: ' . json_encode($State) . ', Aktualisierung erzwingen: ' . json_encode($ForceExecution) . ', Wartungsprüfung überspringen: ' . json_encode($OverrideMaintenanceCheck), 0);
         //Get and set the current state and set the new state
@@ -70,14 +68,14 @@ trait SwitchActuator
             try {
                 $result = @RequestAction($variableID, $State);
             } catch (Exception $e) {
-                $this->LogMessage('ID ' . $this->InstanceID . ', ' . __CLASS__ . ' ' . __FUNCTION__ . ': ' . $e->getMessage(), KL_ERROR);
+                $this->SendDebug(__FUNCTION__, 'Error: ' . $e->getMessage(), 0);
             }
             if (!$result) {
                 IPS_Sleep($switchingDelay);
                 try {
                     $result = @RequestAction($variableID, $State);
                 } catch (Exception $e) {
-                    $this->LogMessage('ID ' . $this->InstanceID . ', ' . __CLASS__ . ' ' . __FUNCTION__ . ': ' . $e->getMessage(), KL_ERROR);
+                    $this->SendDebug(__FUNCTION__, 'Error: ' . $e->getMessage(), 0);
                 }
             }
         }

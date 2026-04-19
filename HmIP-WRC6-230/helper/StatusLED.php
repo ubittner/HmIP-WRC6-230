@@ -253,8 +253,6 @@ trait StatusLED
             return false;
         }
         $caption = $this->StatusLED_GetValueByChannel($Channel, 'caption');
-        //Log
-        //$this->LogMessage('ID ' . $this->InstanceID . ', ' . __CLASS__ . ', ' . __FUNCTION__ . ', Kanal: ' . $Channel . ' = ' . $caption . ', Farbe: ' . $Color . ' = ' . $this->colorTable[$Color] . ', Farbmodus: ' . $ColorBehavior . ' = ' . $this->colorBehaviorTable[$ColorBehavior] . ', Helligkeit: ' . $Brightness . ', Aktualisierung erzwingen: ' . json_encode($ForceExecution) . ', Wartungsprüfung überspringen: ' . json_encode($OverrideMaintenanceCheck), KL_NOTIFY);
         //Debug
         $this->SendDebug(__FUNCTION__, 'Kanal ' . $Channel . ' = ' . $caption . ', Farbe: ' . $Color . ' = ' . $this->colorTable[$Color] . ', Farbmodus: ' . $ColorBehavior . ' = ' . $this->colorBehaviorTable[$ColorBehavior] . ', Helligkeit: ' . $Brightness . ', Aktualisierung erzwingen: ' . json_encode($ForceExecution) . ', Wartungsprüfung überspringen: ' . json_encode($OverrideMaintenanceCheck), 0);
         //Get current color and set the new color
