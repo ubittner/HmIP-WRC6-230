@@ -348,9 +348,9 @@ trait ConfigurationForm
                             [
                                 'caption' => 'Primäre Bedingung',
                                 'name'    => 'PrimaryCondition',
-                                'width'   => '1000px',
+                                'width'   => '800px',
                                 'add'     => '',
-                                'visible' => false,
+                                'visible' => true,
                                 'edit'    => [
                                     'type' => 'SelectCondition'
                                 ]
@@ -787,9 +787,9 @@ trait ConfigurationForm
                                 [
                                     'caption' => 'Primäre Bedingung',
                                     'name'    => 'PrimaryCondition',
-                                    'width'   => '1000px',
+                                    'width'   => '800px',
                                     'add'     => '',
-                                    'visible' => false,
+                                    'visible' => true,
                                     'edit'    => [
                                         'type' => 'SelectCondition'
                                     ]
