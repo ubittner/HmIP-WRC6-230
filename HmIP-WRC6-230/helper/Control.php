@@ -1,5 +1,7 @@
 <?php
 
+/** @noinspection DuplicatedCode */
+
 declare(strict_types=1);
 
 trait Control
@@ -118,6 +120,9 @@ trait Control
             $this->WriteAttributeBoolean('SystemStartup', false);
             $forceExecution = $this->ReadPropertyBoolean('ForceExecutionOnSystemStartup');
             //Automatic deactivation
+            //Trigger list, e.g., twilight
+            $this->Control_CheckDeactivationTriggerConditions($forceExecution);
+            //Time based deactivation^
             if ($this->ReadPropertyBoolean('UseAutomaticDeactivation')) {
                 $state = true;
                 //Check if we are in the deactivation period
@@ -180,6 +185,79 @@ trait Control
             $milliseconds = $this->Control_GetTimerInterval('AutomaticDeactivationEndTime');
         }
         $this->SetTimerInterval('StopAutomaticDeactivation', $milliseconds);
+    }
+
+    protected function Control_CheckDeactivationTriggerConditions(bool $ForceExecution = false): void
+    {
+        $variables = json_decode($this->ReadPropertyString('DeactivationTriggerList'), true);
+        if (!empty($variables)) {
+            foreach ($variables as $variable) {
+                $execute = false;
+                if ($variable['PrimaryCondition'] != '') {
+                    $primaryCondition = json_decode($variable['PrimaryCondition'], true);
+                    if (array_key_exists(0, $primaryCondition)) {
+                        if (array_key_exists(0, $primaryCondition[0]['rules']['variable'])) {
+                            $id = $primaryCondition[0]['rules']['variable'][0]['variableID'];
+                            if ($id > 1 && @IPS_ObjectExists($id)) {
+                                if ($variable['Use']) {
+                                    $condition = true;
+                                    //Check primary condition
+                                    if (!IPS_IsConditionPassing($variable['PrimaryCondition'])) {
+                                        $condition = false;
+                                    }
+                                    //Check secondary condition
+                                    if (!IPS_IsConditionPassing($variable['SecondaryCondition'])) {
+                                        $condition = false;
+                                    }
+                                    if ($condition) {
+                                        $execute = true;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                if ($execute) {
+                    if ($ForceExecution) {
+                        $force = true;
+                    } else {
+                        $force = $variable['ForceExecution'];
+                    }
+                    $this->Control_ToggleActive(boolval($variable['Action']), $force);
+                    break;
+
+                }
+            }
+        }
+    }
+
+    protected function Control_IsVariableAssignedToDeactivationTriggerList(int $VariableID): bool
+    {
+        $result = false;
+        $variables = json_decode($this->ReadPropertyString('DeactivationTriggerList'), true);
+        if (!empty($variables)) {
+            foreach ($variables as $variable) {
+                $conditions = ['PrimaryCondition', 'SecondaryCondition'];
+                foreach ($conditions as $condition) {
+                    if ($variable[$condition] != '') {
+                        $conditionType = json_decode($variable[$condition], true);
+                        if (array_key_exists(0, $conditionType)) {
+                            if (array_key_exists(0, $conditionType[0]['rules']['variable'])) {
+                                $id = $conditionType[0]['rules']['variable'][0]['variableID'];
+                                if ($id == $VariableID) {
+                                    if (@IPS_VariableExists($id)) {
+                                        if ($variable['Use']) {
+                                            $result = true;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        return $result;
     }
 
     ########## Private Methods ##########
