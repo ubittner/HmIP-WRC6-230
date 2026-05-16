@@ -66,6 +66,7 @@ class HMIPWRC6230 extends IPSModuleStrict
         $this->RegisterPropertyInteger('ActivationSwitchActuator', 1);
         $this->RegisterPropertyInteger('DeactivationBrightnessSlider', 0);
         $this->RegisterPropertyInteger('ActivationBrightnessSlider', 100);
+        $this->RegisterPropertyString('DeactivationTriggerList', '[]');
 
         //Visualisation
         $this->RegisterPropertyBoolean('EnableActive', false);
@@ -255,6 +256,7 @@ class HMIPWRC6230 extends IPSModuleStrict
             'StatusLED_LowerLeftTriggerList',
             'StatusLED_LowerRightTriggerList',
             'StatusLED_AllTriggerList',
+            'DeactivationTriggerList'
         ];
         foreach ($triggerLists as $list) {
             $variables = json_decode($this->ReadPropertyString($list), true);
@@ -342,6 +344,11 @@ class HMIPWRC6230 extends IPSModuleStrict
                 //$Data[3] = timestamp actual value
                 //$Data[4] = timestamp value changed
                 //$Data[5] = timestamp-last value
+
+                //Deactivation
+                if ($this->Control_IsVariableAssignedToDeactivationTriggerList($SenderID)) {
+                    $this->Control_CheckDeactivationTriggerConditions();
+                }
 
                 if ($this->Control_CheckMaintenance()) {
                     return;

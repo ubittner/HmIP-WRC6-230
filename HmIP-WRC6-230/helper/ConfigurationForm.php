@@ -1045,6 +1045,54 @@ trait ConfigurationForm
                 ]
             ];
 
+        $deactivationTriggerListValues = [];
+        $variables = json_decode($this->ReadPropertyString('DeactivationTriggerList'), true);
+        $deactivationTriggerListAmountRows = count($variables) + 1;
+        if ($deactivationTriggerListAmountRows == 1) {
+            $deactivationTriggerListAmountRows = 3;
+        }
+        $deactivationTriggerListAmountVariables = count($variables);
+        foreach ($variables as $variable) {
+            $sensorID = 0;
+            if ($variable['PrimaryCondition'] != '') {
+                $primaryCondition = json_decode($variable['PrimaryCondition'], true);
+                if (array_key_exists(0, $primaryCondition)) {
+                    if (array_key_exists(0, $primaryCondition[0]['rules']['variable'])) {
+                        $sensorID = $primaryCondition[0]['rules']['variable'][0]['variableID'];
+                    }
+                }
+            }
+            //Check conditions first
+            $conditions = true;
+            if ($sensorID <= 1 || !@IPS_ObjectExists($sensorID)) {
+                $conditions = false;
+            }
+            if ($variable['SecondaryCondition'] != '') {
+                $secondaryConditions = json_decode($variable['SecondaryCondition'], true);
+                if (array_key_exists(0, $secondaryConditions)) {
+                    if (array_key_exists('rules', $secondaryConditions[0])) {
+                        $rules = $secondaryConditions[0]['rules']['variable'];
+                        foreach ($rules as $rule) {
+                            if (array_key_exists('variableID', $rule)) {
+                                $id = $rule['variableID'];
+                                if ($id <= 1 || !@IPS_ObjectExists($id)) {
+                                    $conditions = false;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            $rowColor = '#FFC0C0'; //red
+            if ($conditions) {
+                $rowColor = '#C0FFC0'; //light green
+                if (!$variable['Use']) {
+                    $rowColor = '#DFDFDF'; //grey
+                }
+            }
+            $deactivationTriggerListValues[] = ['rowColor' => $rowColor];
+        }
+
         $form['elements'][] = [
             'type'    => 'ExpansionPanel',
             'name'    => 'Panel' . $panelCount++,
@@ -1118,7 +1166,7 @@ trait ConfigurationForm
                 ],
                 [
                     'type'    => 'Label',
-                    'caption' => "\nAutomatische Deaktivierung",
+                    'caption' => "\nZeitraum",
                     'bold'    => true,
                     'italic'  => true
                 ],
@@ -1136,6 +1184,108 @@ trait ConfigurationForm
                     'type'    => 'SelectTime',
                     'name'    => 'AutomaticDeactivationEndTime',
                     'caption' => 'Endzeit'
+                ],
+                [
+                    'type'    => 'Label',
+                    'caption' => "\nAuslöser",
+                    'bold'    => true,
+                    'italic'  => true
+                ],
+                [
+                    'type'     => 'List',
+                    'name'     => 'DeactivationTriggerList',
+                    'rowCount' => $deactivationTriggerListAmountRows,
+                    'add'      => true,
+                    'delete'   => true,
+                    'sort'     => [
+                        'column'    => 'Designation',
+                        'direction' => 'ascending'
+                    ],
+                    'columns' => [
+                        [
+                            'caption' => 'Aktiviert',
+                            'name'    => 'Use',
+                            'width'   => '100px',
+                            'add'     => true,
+                            'edit'    => [
+                                'type' => 'CheckBox'
+                            ]
+                        ],
+                        [
+                            'caption' => 'Bezeichnung',
+                            'name'    => 'Designation',
+                            'onClick' => sprintf(
+                                '%s_ModifyTriggerListButton($id, "DeactivationTriggerListConfigurationButton", $DeactivationTriggerList["PrimaryCondition"]);',
+                                self::MODULE_PREFIX,
+                            ),
+                            'width' => '300px',
+                            'add'   => '',
+                            'edit'  => [
+                                'type' => 'ValidationTextBox'
+                            ]
+                        ],
+                        [
+                            'caption' => 'Primäre Bedingung',
+                            'name'    => 'PrimaryCondition',
+                            'width'   => '800px',
+                            'add'     => '',
+                            'visible' => true,
+                            'edit'    => [
+                                'type' => 'SelectCondition'
+                            ]
+                        ],
+                        [
+                            'caption' => 'Weitere Bedingungen',
+                            'name'    => 'SecondaryCondition',
+                            'width'   => '1000px',
+                            'add'     => '',
+                            'visible' => false,
+                            'edit'    => [
+                                'type'  => 'SelectCondition',
+                                'multi' => true
+                            ]
+                        ],
+                        [
+                            'caption' => 'Aktion',
+                            'name'    => 'Action',
+                            'width'   => '150px',
+                            'add'     => 0,
+                            'edit'    => [
+                                'type'    => 'Select',
+                                'options' => [
+                                    [
+                                        'caption' => 'Deaktivierung',
+                                        'value'   => 0
+                                    ],
+                                    [
+                                        'caption' => 'Aktivierung',
+                                        'value'   => 1
+                                    ]
+                                ]
+                            ]
+                        ],
+                        [
+                            'caption' => 'Schaltvorgang erzwingen',
+                            'name'    => 'ForceExecution',
+                            'width'   => '250px',
+                            'add'     => false,
+                            'edit'    => [
+                                'type' => 'CheckBox'
+                            ]
+                        ]
+                    ],
+                    'values' => $deactivationTriggerListValues
+                ],
+                [
+                    'type'    => 'Label',
+                    'caption' => 'Anzahl Auslöser: ' . $deactivationTriggerListAmountVariables,
+                ],
+                [
+                    'type'     => 'OpenObjectButton',
+                    'name'     => 'DeactivationTriggerListConfigurationButton',
+                    'caption'  => 'Bearbeiten',
+                    'visible'  => false,
+                    'objectID' => 0
                 ]
             ]
         ];
